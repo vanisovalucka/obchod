@@ -501,6 +501,18 @@ namespace simulace
                 }
                 //Console.WriteLine("{0} {1} {2}", ud.kdy, ud.kdo.ID, ud.co);
             }
+            int sum = 0;
+            int amount = 0;
+            foreach (int v in this.zakaznici.Values)
+            {
+                sum += v;
+                amount += 1;
+            }
+            Console.WriteLine();
+            //Console.WriteLine("pocet zakazniku:" + pocet_zakazniku + "  prumerny cas:"+ sum / amount);
+            Console.WriteLine( pocet_zakazniku + "  " + sum / amount);
+
+
             return Cas;
         }
     }
@@ -510,19 +522,15 @@ namespace simulace
         static void Main(string[] args)
         {
             Model model = new Model();
-            model.Vypocet(67);
-
-            int sum = 0;
-            int amount = 0;
-            foreach (int v in model.zakaznici.Values)
+            for (int pocet = 1; pocet<502; pocet += 10)
             {
-                sum += v;
-                amount += 1;
-            }
-            Console.WriteLine();
-            Console.WriteLine(sum / amount);
+            model.Vypocet(pocet);
 
+            }
             Console.ReadLine();
+
+
+            
         }
     }
 }
