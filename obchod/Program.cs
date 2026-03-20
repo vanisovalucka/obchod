@@ -5,6 +5,7 @@ using System.Text;
 
 namespace simulace
 {
+    
     public enum TypUdalosti
     {
         Start,
@@ -12,6 +13,10 @@ namespace simulace
         Obslouzen
     }
 
+    public static class Generator
+    {
+        public static Random rnd = new (12345);
+    }
     public class Udalost
     {
         public int kdy;
@@ -81,7 +86,7 @@ namespace simulace
             //if (ID == "Dana")
             //if (ID == "elefant")
             //if (this is Zakaznik)
-            Console.WriteLine($"{model.Cas}/{patro} {ID}: {zprava}");
+            //Console.WriteLine($"{model.Cas}/{patro} {ID}: {zprava}");
         }
         protected Model model;
     }
@@ -341,25 +346,30 @@ namespace simulace
             }
         }
     }
+
+   
+    
+       
+    
     public class Zakaznik : Proces
     {
         private int trpelivost;
         public int prichod;
-        private List<string> Nakupy;
-        public Zakaznik(Model model, string popis)
+        private List<Oddeleni> Nakupy;
+        public Zakaznik(Model model)
         {
             this.model = model;
-            string[] popisy = popis.Split(Proces.mezery, StringSplitOptions.RemoveEmptyEntries);
-            this.ID = popisy[0];
-            this.prichod = int.Parse(popisy[1]);
-            this.trpelivost = int.Parse(popisy[2]);
-            Nakupy = new List<string>();
-            for (int i = 3; i < popisy.Length; i++)
+            this.prichod = Generator.rnd.Next(0, 601);
+            this.trpelivost = Generator.rnd.Next(1, 181);
+            Nakupy = new List<Oddeleni>();
+            int pocet_nakupu = Generator.rnd.Next(1, 21);
+            for (int i = 0; i < pocet_nakupu; i++)
             {
-                Nakupy.Add(popisy[i]);
+                int j = Generator.rnd.Next(1, model.VsechnaOddeleni.Count);
+                Nakupy.Add(model.VsechnaOddeleni[j]);
             }
             this.patro = 0;
-            Console.WriteLine("Init Zakaznik: {0}", ID);
+            //Console.WriteLine("Init Zakaznik: {0}", ID);
             model.Naplanuj(prichod, this, TypUdalosti.Start);
         }
         public override void Zpracuj(Udalost ud)
@@ -377,7 +387,7 @@ namespace simulace
                     }
                     else
                     {
-                        Oddeleni odd = OddeleniPodleJmena(Nakupy[0]);
+                        Oddeleni odd = Nakupy[0];
                         int pat = odd.patro;
                         if (pat == patro) // to oddeleni je v patre, kde prave jsem
                         {
@@ -399,12 +409,12 @@ namespace simulace
                     log("!!! Trpělivost: " + Nakupy[0]);
                     // vyradit z fronty:
                     {
-                        Oddeleni odd = OddeleniPodleJmena(Nakupy[0]);
+                        Oddeleni odd = Nakupy[0];
                         odd.VyradZFronty(this);
                     }
 
                     // prehodit tenhle nakup na konec:
-                    string nesplneny = Nakupy[0];
+                    Oddeleni nesplneny = Nakupy[0];
                     Nakupy.RemoveAt(0);
                     Nakupy.Add(nesplneny);
 
@@ -443,7 +453,7 @@ namespace simulace
 
 
 
-        public void VytvorProcesy()
+        public void VytvorProcesy(int pocet_zakazniku)
         {
             System.IO.StreamReader soubor = new System.IO.StreamReader("obchod_data.txt");
             while (!soubor.EndOfStream)
@@ -456,23 +466,26 @@ namespace simulace
                         case 'O':
                             new Oddeleni(this, s.Substring(1));
                             break;
-                        case 'Z':
-                            Zakaznik z = new Zakaznik(this, s.Substring(1));
-                            zakaznici.Add(z, 0);
-                            break;
+
                         case 'V':
                             vytah = new Vytah(this, s.Substring(1));
                             break;
                     }
                 }
             }
+                for (int i = 0; i<pocet_zakazniku; i++)
+                {
+                    Zakaznik z = new Zakaznik(this);
+                    zakaznici.Add(z, 0);
+                }
+            
             soubor.Close();
         }
-        public int Vypocet()
+        public int Vypocet(int pocet_zakazniku)
         {
             Cas = 0;
             kalendar = new Kalendar();
-            VytvorProcesy();
+            VytvorProcesy(pocet_zakazniku);
 
             Udalost ud;
 
@@ -497,7 +510,7 @@ namespace simulace
         static void Main(string[] args)
         {
             Model model = new Model();
-            Console.Write("{0} KONEC --------------------------------", model.Vypocet());
+            model.Vypocet(67);
 
             int sum = 0;
             int amount = 0;
