@@ -7,7 +7,6 @@ using System.Text.Json.Serialization;
 
 namespace simulace
 {
-    
     public enum TypUdalosti
     {
         Start,
@@ -17,36 +16,36 @@ namespace simulace
 
     public static class Generator
     {
-        public static Random rnd = new (12345);
+        public static Random rnd = new(12345);
     }
+
     public class Udalost
     {
-        public int kdy;
-        public Proces kdo;
-        public TypUdalosti co;
+        public int kdy { get; set; }
+        public Proces kdo { get; set; }
+        public TypUdalosti co { get; set; }
+
+        public Udalost() { }
         public Udalost(int kdy, Proces kdo, TypUdalosti co)
         {
             this.kdy = kdy;
             this.kdo = kdo;
             this.co = co;
-
         }
     }
+
     public class Kalendar
     {
-        private List<Udalost> seznam;
+        public List<Udalost> seznam { get; set; }
         public Kalendar()
         {
             seznam = new List<Udalost>();
         }
         public void Pridej(int kdy, Proces kdo, TypUdalosti co)
         {
-            //Console.WriteLine("PLAN: {0} {1} {2}", kdy, kdo.ID, co);
-            // pro hledani chyby:
             foreach (Udalost ud in seznam)
                 if (ud.kdo == kdo)
                     Console.WriteLine("");
-
 
             seznam.Add(new Udalost(kdy, kdo, co));
         }
@@ -57,7 +56,7 @@ namespace simulace
                 if ((ud.kdo == kdo) && (ud.co == co))
                 {
                     seznam.Remove(ud);
-                    return; // odebiram jen jeden vyskyt!
+                    return;
                 }
             }
         }
@@ -74,31 +73,27 @@ namespace simulace
         {
             return Prvni();
         }
-
     }
 
     public abstract class Proces
     {
         public static char[] mezery = { ' ' };
-        public int patro;
-        public string ID;
+        public int patro { get; set; }
+        public string ID { get; set; }
         public abstract void Zpracuj(Udalost ud);
-        public void log(string zprava)
-        {
-            //if (ID == "Dana")
-            //if (ID == "elefant")
-            //if (this is Zakaznik)
-            //Console.WriteLine($"{model.Cas}/{patro} {ID}: {zprava}");
-        }
-        protected Model model;
+        public void log(string zprava) { }
+
+        [JsonIgnore]
+        public Model model { get; set; }
     }
 
     public class Oddeleni : Proces
     {
-        public int rychlost;
-        public List<Zakaznik> fronta;
-        private bool obsluhuje;
+        public int rychlost { get; set; }
+        public List<Zakaznik> fronta { get; set; }
+        public bool obsluhuje { get; set; }
 
+        public Oddeleni() { }
         public Oddeleni(Model model, string popis)
         {
             this.model = model;
@@ -115,10 +110,7 @@ namespace simulace
         public void ZaradDoFronty(Zakaznik zak)
         {
             fronta.Add(zak);
-            log("do fronty " + zak.ID);
-
-            if (obsluhuje) ; // nic
-            else
+            if (!obsluhuje)
             {
                 obsluhuje = true;
                 model.Naplanuj(model.Cas, this, TypUdalosti.Start);
@@ -134,7 +126,7 @@ namespace simulace
             {
                 case TypUdalosti.Start:
                     if (fronta.Count == 0)
-                        obsluhuje = false; // a dal neni naplanovana a probudi se tim, ze se nekdo zaradi do fronty
+                        obsluhuje = false;
                     else
                     {
                         Zakaznik zak = fronta[0];
@@ -147,24 +139,22 @@ namespace simulace
             }
         }
     }
-    public enum SmeryJizdy
-    {
-        Nahoru,
-        Dolu,
-        Stoji
-    }
+
+    public enum SmeryJizdy { Nahoru, Dolu, Stoji }
+
     public class Vytah : Proces
     {
-        public int kapacita;
-        public int dobaNastupu;
-        public int dobaVystupu;
-        public int dobaPatro2Patro;
-        static int[] ismery = { +1, -1, 0 }; // prevod (int) SmeryJizdy na smer
+        public int kapacita { get; set; }
+        public int dobaNastupu { get; set; }
+        public int dobaVystupu { get; set; }
+        public int dobaPatro2Patro { get; set; }
+        static int[] ismery = { +1, -1, 0 };
 
-        private class Pasazer
+        public class Pasazer
         {
-            public Proces kdo;
-            public int kamJede;
+            public Proces kdo { get; set; }
+            public int kamJede { get; set; }
+            public Pasazer() { }
             public Pasazer(Proces kdo, int kamJede)
             {
                 this.kdo = kdo;
@@ -172,45 +162,12 @@ namespace simulace
             }
         }
 
-        private List<Pasazer>[,] cekatele; // [patro,smer]
-        private List<Pasazer> naklad; // pasazeri ve vytahu
-        private SmeryJizdy smer;
-        private int kdyJsemMenilSmer;
+        public List<Pasazer>[,] cekatele { get; set; }
+        public List<Pasazer> naklad { get; set; }
+        public SmeryJizdy smer { get; set; }
+        public int kdyJsemMenilSmer { get; set; }
 
-        public void PridejDoFronty(int odkud, int kam, Proces kdo)
-        {
-            Pasazer pas = new Pasazer(kdo, kam);
-            if (kam > odkud)
-                cekatele[odkud, (int)SmeryJizdy.Nahoru].Add(pas);
-            else
-                cekatele[odkud, (int)SmeryJizdy.Dolu].Add(pas);
-
-            // pripadne rozjet stojici vytah:
-            if (smer == SmeryJizdy.Stoji)
-            {
-                model.Odplanuj(model.vytah, TypUdalosti.Start); // kdyby nahodou uz byl naplanovany
-                model.Naplanuj(model.Cas, this, TypUdalosti.Start);
-            }
-        }
-        public bool CekaNekdoVPatrechVeSmeruJizdy()
-        {
-            int ismer = ismery[(int)smer];
-            for (int pat = patro + ismer; (pat > 0) && (pat <= model.MaxPatro); pat += ismer)
-                if ((cekatele[pat, (int)SmeryJizdy.Nahoru].Count > 0) || (cekatele[pat, (int)SmeryJizdy.Dolu].Count > 0))
-                {
-                    if (cekatele[pat, (int)SmeryJizdy.Nahoru].Count > 0)
-                        log("Nahoru čeká " + cekatele[pat, (int)SmeryJizdy.Nahoru][0].kdo.ID
-                        + " v patře " + pat + "/" + cekatele[pat, (int)SmeryJizdy.Nahoru][0].kdo.patro);
-                    if (cekatele[pat, (int)SmeryJizdy.Dolu].Count > 0)
-                        log("Dolů čeká " + cekatele[pat, (int)SmeryJizdy.Dolu][0].kdo.ID
-                        + " v patře " + pat + "/" + cekatele[pat, (int)SmeryJizdy.Dolu][0].kdo.patro);
-
-                    //log(" x "+cekatele[pat, (int)SmeryJizdy.Nahoru].Count+" x "+cekatele[pat, (int)SmeryJizdy.Dolu].Count);
-                    return true;
-                }
-            return false;
-        }
-
+        public Vytah() { }
         public Vytah(Model model, string popis)
         {
             this.model = model;
@@ -226,143 +183,99 @@ namespace simulace
 
             cekatele = new List<Pasazer>[model.MaxPatro + 1, 2];
             for (int i = 0; i < model.MaxPatro + 1; i++)
-            {
                 for (int j = 0; j < 2; j++)
-                {
                     cekatele[i, j] = new List<Pasazer>();
-                }
-
-            }
             naklad = new List<Pasazer>();
         }
+
+        public void PridejDoFronty(int odkud, int kam, Proces kdo)
+        {
+            Pasazer pas = new Pasazer(kdo, kam);
+            if (kam > odkud)
+                cekatele[odkud, (int)SmeryJizdy.Nahoru].Add(pas);
+            else
+                cekatele[odkud, (int)SmeryJizdy.Dolu].Add(pas);
+
+            if (smer == SmeryJizdy.Stoji)
+            {
+                model.Odplanuj(model.vytah, TypUdalosti.Start);
+                model.Naplanuj(model.Cas, this, TypUdalosti.Start);
+            }
+        }
+        public bool CekaNekdoVPatrechVeSmeruJizdy()
+        {
+            int ismer = ismery[(int)smer];
+            for (int pat = patro + ismer; (pat > 0) && (pat <= model.MaxPatro); pat += ismer)
+                if ((cekatele[pat, (int)SmeryJizdy.Nahoru].Count > 0) || (cekatele[pat, (int)SmeryJizdy.Dolu].Count > 0))
+                    return true;
+            return false;
+        }
+
         public override void Zpracuj(Udalost ud)
         {
             switch (ud.co)
             {
                 case TypUdalosti.Start:
-
-                    // HACK pro cerstve probuzeny vytah:
-                    if (smer == SmeryJizdy.Stoji)
-                        // stoji, tedy nikoho neveze a nekdo ho prave probudil => nastavim jakykoliv smer a najde ho:
-                        smer = SmeryJizdy.Nahoru;
-
-                    // chce nekdo vystoupit?
+                    if (smer == SmeryJizdy.Stoji) smer = SmeryJizdy.Nahoru;
                     foreach (Pasazer pas in naklad)
                         if (pas.kamJede == patro)
-                        // bude vystupovat:
                         {
                             naklad.Remove(pas);
-
                             pas.kdo.patro = patro;
                             model.Naplanuj(model.Cas + dobaVystupu, pas.kdo, TypUdalosti.Start);
-                            log("vystupuje " + pas.kdo.ID);
-
                             model.Naplanuj(model.Cas + dobaVystupu, this, TypUdalosti.Start);
-
-                            return; // to je pro tuhle chvili vsechno
+                            return;
                         }
-
-                    // muze a chce nekdo nastoupit?
                     if (naklad.Count == kapacita)
-                    // i kdyby chtel nekdo nastupovat, nemuze; veze lidi => pokracuje:
                     {
-                        // popojet:
-                        int ismer = ismery[(int)smer];
-                        patro = patro + ismer;
-
-                        string spas = "";
-                        foreach (Pasazer pas in naklad)
-                            spas += " " + pas.kdo.ID;
-                        log("odjíždím");
+                        patro += ismery[(int)smer];
                         model.Naplanuj(model.Cas + dobaPatro2Patro, this, TypUdalosti.Start);
-                        return; // to je pro tuhle chvili vsechno
+                        return;
                     }
                     else
-                    // neni uplne plny
                     {
-                        // chce nastoupit nekdo VE SMERU jizdy?
                         if (cekatele[patro, (int)smer].Count > 0)
                         {
-                            log("nastupuje " + cekatele[patro, (int)smer][0].kdo.ID);
                             naklad.Add(cekatele[patro, (int)smer][0]);
                             cekatele[patro, (int)smer].RemoveAt(0);
                             model.Naplanuj(model.Cas + dobaNastupu, this, TypUdalosti.Start);
-
-                            return; // to je pro tuhle chvili vsechno
+                            return;
                         }
-
-                        // ve smeru jizdy nikdo nenastupuje:
-                        if (naklad.Count > 0)
-                        // nikdo nenastupuje, vezu pasazery => pokracuju v jizde:
+                        if (naklad.Count > 0 || CekaNekdoVPatrechVeSmeruJizdy())
                         {
-                            // popojet:
-                            int ismer = ismery[(int)smer];
-                            patro = patro + ismer;
-
-                            string spas = "";
-                            foreach (Pasazer pas in naklad)
-                                spas += " " + pas.kdo.ID;
-                            //log("nekoho vezu");
-                            log("odjíždím: " + spas);
-
+                            patro += ismery[(int)smer];
                             model.Naplanuj(model.Cas + dobaPatro2Patro, this, TypUdalosti.Start);
-                            return; // to je pro tuhle chvili vsechno
+                            return;
                         }
-
-                        // vytah je prazdny, pokud v dalsich patrech ve smeru jizdy uz nikdo neceka, muze zmenit smer nebo se zastavit:
-                        if (CekaNekdoVPatrechVeSmeruJizdy() == true)
-                        // pokracuje v jizde:
-                        {
-                            // popojet:
-                            int ismer = ismery[(int)smer];
-                            patro = patro + ismer;
-
-                            //log("nekdo ceka");
-                            log("odjíždím");
-                            model.Naplanuj(model.Cas + dobaPatro2Patro, this, TypUdalosti.Start);
-                            return; // to je pro tuhle chvili vsechno
-                        }
-
-                        // ve smeru jizdy uz nikdo neceka => zmenit smer nebo zastavit:
-                        if (smer == SmeryJizdy.Nahoru)
-                            smer = SmeryJizdy.Dolu;
-                        else
-                            smer = SmeryJizdy.Nahoru;
-
-                        log("změna směru");
-
-                        //chce nekdo nastoupit prave tady?
+                        if (smer == SmeryJizdy.Nahoru) smer = SmeryJizdy.Dolu;
+                        else smer = SmeryJizdy.Nahoru;
                         if (kdyJsemMenilSmer != model.Cas)
                         {
                             kdyJsemMenilSmer = model.Cas;
-                            // podivat se, jestli nekdo nechce nastoupit opacnym smerem:
                             model.Naplanuj(model.Cas, this, TypUdalosti.Start);
                             return;
                         }
-
-                        // uz jsem jednou smer menil a zase nikdo nenastoupil a nechce => zastavit
-                        log("zastavuje");
                         smer = SmeryJizdy.Stoji;
-                        return; // to je pro tuhle chvili vsechno
+                        return;
                     }
             }
         }
     }
 
-   
-    
-       
-    
     public class Zakaznik : Proces
     {
-        private int trpelivost;
-        public int prichod;
-        private List<Oddeleni> Nakupy;
+        public int trpelivost { get; set; }
+        public int prichod { get; set; }
+        public bool obslouzen { get; set; }
+        public List<Oddeleni> Nakupy { get; set; }
+
+        public Zakaznik() { }
         public Zakaznik(Model model)
         {
             this.model = model;
             this.prichod = Generator.rnd.Next(0, 601);
             this.trpelivost = Generator.rnd.Next(1, 181);
+            this.obslouzen = false;
             Nakupy = new List<Oddeleni>();
             int pocet_nakupu = Generator.rnd.Next(1, 21);
             for (int i = 0; i < pocet_nakupu; i++)
@@ -371,7 +284,6 @@ namespace simulace
                 Nakupy.Add(model.VsechnaOddeleni[j]);
             }
             this.patro = 0;
-            //Console.WriteLine("Init Zakaznik: {0}", ID);
             model.Naplanuj(prichod, this, TypUdalosti.Start);
         }
         public override void Zpracuj(Udalost ud)
@@ -380,178 +292,190 @@ namespace simulace
             {
                 case TypUdalosti.Start:
                     if (Nakupy.Count == 0)
-                    // ma nakoupeno
                     {
-                        if (patro == 0)
-                            log("-------------- odchází"); // nic, konci
-                        else
-                            model.vytah.PridejDoFronty(patro, 0, this);
+                        if (patro != 0) model.vytah.PridejDoFronty(patro, 0, this);
                     }
                     else
                     {
                         Oddeleni odd = Nakupy[0];
-                        int pat = odd.patro;
-                        if (pat == patro) // to oddeleni je v patre, kde prave jsem
+                        if (odd.patro == patro)
                         {
-                            if (Nakupy.Count > 1)
-                                model.Naplanuj(model.Cas + trpelivost, this, TypUdalosti.Trpelivost);
+                            if (Nakupy.Count > 1) model.Naplanuj(model.Cas + trpelivost, this, TypUdalosti.Trpelivost);
                             odd.ZaradDoFronty(this);
                         }
-                        else
-                            model.vytah.PridejDoFronty(patro, pat, this);
+                        else model.vytah.PridejDoFronty(patro, odd.patro, this);
                     }
                     break;
                 case TypUdalosti.Obslouzen:
-                    log("Nakoupeno: " + Nakupy[0]);
                     Nakupy.RemoveAt(0);
-                    // ...a budu hledat dalsi nakup -->> Start
+                    obslouzen = true;
                     model.Naplanuj(model.Cas, this, TypUdalosti.Start);
                     break;
                 case TypUdalosti.Trpelivost:
-                    log("!!! Trpělivost: " + Nakupy[0]);
-                    // vyradit z fronty:
-                    {
-                        Oddeleni odd = Nakupy[0];
-                        odd.VyradZFronty(this);
-                    }
-
-                    // prehodit tenhle nakup na konec:
+                    Nakupy[0].VyradZFronty(this);
                     Oddeleni nesplneny = Nakupy[0];
                     Nakupy.RemoveAt(0);
                     Nakupy.Add(nesplneny);
-
-                    // ...a budu hledat dalsi nakup -->> Start
                     model.Naplanuj(model.Cas, this, TypUdalosti.Start);
                     break;
             }
         }
+    }
 
-        public class SuperZakaznik_1 : Zakaznik
+    public class SuperZakaznik_1 : Zakaznik
+    {
+        public SuperZakaznik_1() { }
+        public SuperZakaznik_1(Model model) : base(model) { }
+
+        public Oddeleni PrednostniNakup(List<Oddeleni> Nakupy)
         {
-            public SuperZakaznik_1(Model model) : base(model)
-            { }
-
-            public Oddeleni PrednostniNakup(List<Oddeleni> Nakupy)
-            {
-                foreach (Oddeleni odd in Nakupy)
-                {
-                    if (odd.patro == patro)
-                        return odd;
-                }
-                return Nakupy[0];
-            }
-            public override void Zpracuj(Udalost ud)
-            {
-                switch (ud.co)
-                {
-                    case TypUdalosti.Start:
-                        if (Nakupy.Count == 0)
-                        // ma nakoupeno
-                        {
-                            if (patro == 0)
-                                log("-------------- odchází"); // nic, konci
-                            else
-                                model.vytah.PridejDoFronty(patro, 0, this);
-                        }
-                        else
-                        {
-                            Oddeleni odd = PrednostniNakup(Nakupy);
-                            int pat = odd.patro;
-                            if (pat == patro) // to oddeleni je v patre, kde prave jsem
-                            {
-                                if (Nakupy.Count > 1)
-                                    model.Naplanuj(model.Cas + trpelivost, this, TypUdalosti.Trpelivost);
-                                odd.ZaradDoFronty(this);
-                            }
-                            else
-                                model.vytah.PridejDoFronty(patro, pat, this);
-                        }
-                        break;
-                    case TypUdalosti.Obslouzen:
-                        log("Nakoupeno: " + Nakupy[0]);
-                        Nakupy.RemoveAt(0);
-                        // ...a budu hledat dalsi nakup -->> Start
-                        model.Naplanuj(model.Cas, this, TypUdalosti.Start);
-                        break;
-                    case TypUdalosti.Trpelivost:
-                        log("!!! Trpělivost: " + Nakupy[0]);
-                        // vyradit z fronty:
-                        {
-                            Oddeleni odd = Nakupy[0];
-                            odd.VyradZFronty(this);
-                        }
-
-                        // prehodit tenhle nakup na konec:
-                        Oddeleni nesplneny = Nakupy[0];
-                        Nakupy.RemoveAt(0);
-                        Nakupy.Add(nesplneny);
-
-                        // ...a budu hledat dalsi nakup -->> Start
-                        model.Naplanuj(model.Cas, this, TypUdalosti.Start);
-                        break;
-                }
-            }
+            foreach (Oddeleni odd in Nakupy)
+                if (odd.patro == patro) return odd;
+            return Nakupy[0];
         }
-    
-        private Oddeleni OddeleniPodleJmena(string kamChci)
+
+        public override void Zpracuj(Udalost ud)
         {
-            foreach (Oddeleni odd in model.VsechnaOddeleni)
-                if (odd.ID == kamChci)
-                    return odd;
-            return null;
+            switch (ud.co)
+            {
+                case TypUdalosti.Start:
+                    if (Nakupy.Count == 0)
+                    {
+                        if (patro != 0) model.vytah.PridejDoFronty(patro, 0, this);
+                    }
+                    else
+                    {
+                        Oddeleni odd = PrednostniNakup(Nakupy);
+                        if (odd.patro == patro)
+                        {
+                            if (Nakupy.Count > 1) model.Naplanuj(model.Cas + trpelivost, this, TypUdalosti.Trpelivost);
+                            odd.ZaradDoFronty(this);
+                        }
+                        else model.vytah.PridejDoFronty(patro, odd.patro, this);
+                    }
+                    break;
+                case TypUdalosti.Obslouzen:
+                    Nakupy.RemoveAt(0);
+                    obslouzen = true;
+                    model.Naplanuj(model.Cas, this, TypUdalosti.Start);
+                    break;
+                case TypUdalosti.Trpelivost:
+                    Nakupy[0].VyradZFronty(this);
+                    Oddeleni nesplneny = Nakupy[0];
+                    Nakupy.RemoveAt(0);
+                    Nakupy.Add(nesplneny);
+                    model.Naplanuj(model.Cas, this, TypUdalosti.Start);
+                    break;
+            }
         }
     }
+
     public class SuperZakaznik_2 : Zakaznik
     {
-        public SuperZakaznik_2(Model model) : base(model)
-        { }
+        public bool podsimulace { get; set; } = false;
+        public SuperZakaznik_2() { }
+        public SuperZakaznik_2(Model model) : base(model) { }
+
 
         public int doba(Oddeleni odd)
         {
-            switch (odd.patro == patro)
-            {
-                case true:
-                    return (odd.fronta.Count * odd.rychlost);
-                case false:
-                    Model podmodel = 
-            }
-                
-                  
+            
+        Model model2 = model.Klonuj();
+            Zakaznik ZakaznikVPodsimulaci = new Zakaznik(model2);
+            ZakaznikVPodsimulaci.patro = this.patro;
+            ZakaznikVPodsimulaci.trpelivost = this.trpelivost;
+            model2.Odplanuj(ZakaznikVPodsimulaci, TypUdalosti.Start);
+            int index_oddeleni = 0;
+                for (int i = 0; i < model.VsechnaOddeleni.Count; i++)
+                {
+                    if (model.VsechnaOddeleni[i] == odd) index_oddeleni = i;
+                }
+                odd = model2.VsechnaOddeleni[index_oddeleni];
 
-        }  
+            ZakaznikVPodsimulaci.Nakupy = [odd];
+            
+            if (odd.patro == ZakaznikVPodsimulaci.patro)
+            {
+                model2.Naplanuj(model2.Cas + trpelivost, ZakaznikVPodsimulaci, TypUdalosti.Trpelivost);
+                
+                odd.ZaradDoFronty(ZakaznikVPodsimulaci);
+            }
+            else model2.vytah.PridejDoFronty(ZakaznikVPodsimulaci.patro, odd.patro, ZakaznikVPodsimulaci);
+
+            int doba = model2.ZaJakDlouhoZakaznikVyridiNakup(ZakaznikVPodsimulaci);
+
+            
+
+            return doba;
+        }
+
         public Oddeleni NejvyhodnejsiOddeleni(List<Oddeleni> Nakupy)
         {
             Oddeleni nejvyhodnejsi = Nakupy[0];
-            int nejrychlost = int.MaxValue;
-            for (int i = 1; i < Nakupy.Count + 1; i++)
+            int NejkratsiDoba = doba(nejvyhodnejsi);
+            int Doba;
+            for(int i = 1; i<Nakupy.Count; i++)
             {
-                Oddeleni odd = Nakupy[i];
-                if (odd.patro == patro)
+                Doba = doba(Nakupy[i]);
+                if(Doba < NejkratsiDoba)
                 {
-
+                    NejkratsiDoba = Doba;
+                    nejvyhodnejsi = Nakupy[i];
                 }
+            }
+            return nejvyhodnejsi;
+        }
+
+        public override void Zpracuj(Udalost ud)
+        {
+            switch (ud.co)
+            {
+                case TypUdalosti.Start:
+                    if (Nakupy.Count == 0)
+                    {
+                        if (patro != 0) model.vytah.PridejDoFronty(patro, 0, this);
+                    }
+                    else
+                    {
+                        Oddeleni odd;
+
+                        odd = NejvyhodnejsiOddeleni(Nakupy);
+                        
+                        if (odd.patro == patro)
+                        {
+                            if (Nakupy.Count > 1) model.Naplanuj(model.Cas + trpelivost, this, TypUdalosti.Trpelivost);
+                            odd.ZaradDoFronty(this);
+                        }
+                        else model.vytah.PridejDoFronty(patro, odd.patro, this);
+                    }
+                    break;
+                case TypUdalosti.Obslouzen:
+                    Nakupy.RemoveAt(0);
+                    obslouzen = true;
+                    model.Naplanuj(model.Cas, this, TypUdalosti.Start);
+                    break;
+                case TypUdalosti.Trpelivost:
+                    Nakupy[0].VyradZFronty(this);
+                    Oddeleni nesplneny = Nakupy[0];
+                    Nakupy.RemoveAt(0);
+                    Nakupy.Add(nesplneny);
+                    model.Naplanuj(model.Cas, this, TypUdalosti.Start);
+                    break;
             }
         }
     }
 
     public class Model
     {
-        public int Cas;
-        public Vytah vytah;
-        public Dictionary<Zakaznik, int> zakaznici = new Dictionary<Zakaznik, int>();
-        public List<Oddeleni> VsechnaOddeleni = new List<Oddeleni>();
-        public int MaxPatro;
-        private Kalendar kalendar;
-        public void Naplanuj(int kdy, Proces kdo, TypUdalosti co)
-        {
-            kalendar.Pridej(kdy, kdo, co);
-        }
-        public void Odplanuj(Proces kdo, TypUdalosti co)
-        {
-            kalendar.Odeber(kdo, co);
-        }
+        public int Cas { get; set; }
+        public Vytah vytah { get; set; }
+        public Dictionary<Zakaznik, int> zakaznici { get; set; } = new Dictionary<Zakaznik, int>();
+        public List<Oddeleni> VsechnaOddeleni { get; set; } = new List<Oddeleni>();
+        public int MaxPatro { get; set; }
+        public Kalendar kalendar { get; set; }
 
-
+        public void Naplanuj(int kdy, Proces kdo, TypUdalosti co) => kalendar.Pridej(kdy, kdo, co);
+        public void Odplanuj(Proces kdo, TypUdalosti co) => kalendar.Odeber(kdo, co);
 
         public void VytvorProcesy(int pocet_zakazniku)
         {
@@ -563,57 +487,68 @@ namespace simulace
                 {
                     switch (s[0])
                     {
-                        case 'O':
-                            new Oddeleni(this, s.Substring(1));
-                            break;
-
-                        case 'V':
-                            vytah = new Vytah(this, s.Substring(1));
-                            break;
+                        case 'O': new Oddeleni(this, s.Substring(1)); break;
+                        case 'V': vytah = new Vytah(this, s.Substring(1)); break;
                     }
                 }
             }
-                for (int i = 0; i<pocet_zakazniku; i++)
-                {
-                    Zakaznik z = new Zakaznik(this);
-                    zakaznici.Add(z, 0);
-                }
-            
+            for (int i = 0; i < pocet_zakazniku; i++)
+                zakaznici.Add(new Zakaznik(this), 0);
             soubor.Close();
         }
+
         public int Vypocet(int pocet_zakazniku)
         {
             Cas = 0;
             kalendar = new Kalendar();
             VytvorProcesy(pocet_zakazniku);
-
             Udalost ud;
-
             while ((ud = kalendar.Vyber()) != null)
             {
                 Cas = ud.kdy;
                 ud.kdo.Zpracuj(ud);
-                if (ud.kdo is Zakaznik zakaznik)
-                {
-                    int prisel = zakaznik.prichod;
-                    int posledniAkce = Cas - prisel;
-                    zakaznici[zakaznik] = posledniAkce;
-                }
-                //Console.WriteLine("{0} {1} {2}", ud.kdy, ud.kdo.ID, ud.co);
+                if (ud.kdo is Zakaznik z) zakaznici[z] = Cas - z.prichod;
             }
             int sum = 0;
             int amount = 0;
-            foreach (int v in this.zakaznici.Values)
-            {
-                sum += v;
-                amount += 1;
-            }
-            Console.WriteLine();
-            //Console.WriteLine("pocet zakazniku:" + pocet_zakazniku + "  prumerny cas:"+ sum / amount);
-            Console.WriteLine( pocet_zakazniku + "  " + sum / amount);
-
-
+            foreach (int v in zakaznici.Values) { sum += v; amount++; }
+            Console.WriteLine("\n" + pocet_zakazniku + "  " + (amount > 0 ? sum / amount : 0));
             return Cas;
+        }
+
+        public int ZaJakDlouhoZakaznikVyridiNakup(Zakaznik z)
+        {
+            int zacatek = Cas;
+            Udalost ud;
+            while ((ud = kalendar.Vyber()) != null)
+            {
+                Cas = ud.kdy;
+                ud.kdo.Zpracuj(ud);
+                if (ud.kdo == z && z.obslouzen)
+                    return Cas - zacatek;
+            }
+            return Cas;
+        }
+
+        public Model Klonuj()
+        {
+            // 1. Nastavení, aby bral i pole (fields), pokud bys někde zapomněla na {get;set;}
+            var options = new JsonSerializerOptions { IncludeFields = true };
+
+            // 2. Serializace (Uložení do textu) a Deserializace (Vytvoření kopie z textu)
+            string json = JsonSerializer.Serialize(this, options);
+            Model klon = JsonSerializer.Deserialize<Model>(json, options);
+
+            // 3. Ruční oprava (Relink) - JSON ignoroval 'model', tak ho klonu vrátíme
+            if (klon != null)
+            {
+                if (klon.vytah != null) klon.vytah.model = klon;
+                foreach (var odd in klon.VsechnaOddeleni) odd.model = klon;
+                foreach (var zak in klon.zakaznici.Keys) zak.model = klon;
+                
+            }
+
+            return klon;
         }
     }
 
@@ -622,15 +557,9 @@ namespace simulace
         static void Main(string[] args)
         {
             Model model = new Model();
-            for (int pocet = 1; pocet<502; pocet += 10)
-            {
-            model.Vypocet(pocet);
-
-            }
+            for (int pocet = 1; pocet < 502; pocet += 10)
+                model.Vypocet(pocet);
             Console.ReadLine();
-
-
-            
         }
     }
 }
