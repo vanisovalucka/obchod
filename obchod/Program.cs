@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace simulace
 {
@@ -93,8 +95,8 @@ namespace simulace
 
     public class Oddeleni : Proces
     {
-        private int rychlost;
-        private List<Zakaznik> fronta;
+        public int rychlost;
+        public List<Zakaznik> fronta;
         private bool obsluhuje;
 
         public Oddeleni(Model model, string popis)
@@ -153,10 +155,10 @@ namespace simulace
     }
     public class Vytah : Proces
     {
-        private int kapacita;
-        private int dobaNastupu;
-        private int dobaVystupu;
-        private int dobaPatro2Patro;
+        public int kapacita;
+        public int dobaNastupu;
+        public int dobaVystupu;
+        public int dobaPatro2Patro;
         static int[] ismery = { +1, -1, 0 }; // prevod (int) SmeryJizdy na smer
 
         private class Pasazer
@@ -424,6 +426,73 @@ namespace simulace
             }
         }
 
+        public class SuperZakaznik_1 : Zakaznik
+        {
+            public SuperZakaznik_1(Model model) : base(model)
+            { }
+
+            public Oddeleni PrednostniNakup(List<Oddeleni> Nakupy)
+            {
+                foreach (Oddeleni odd in Nakupy)
+                {
+                    if (odd.patro == patro)
+                        return odd;
+                }
+                return Nakupy[0];
+            }
+            public override void Zpracuj(Udalost ud)
+            {
+                switch (ud.co)
+                {
+                    case TypUdalosti.Start:
+                        if (Nakupy.Count == 0)
+                        // ma nakoupeno
+                        {
+                            if (patro == 0)
+                                log("-------------- odchází"); // nic, konci
+                            else
+                                model.vytah.PridejDoFronty(patro, 0, this);
+                        }
+                        else
+                        {
+                            Oddeleni odd = PrednostniNakup(Nakupy);
+                            int pat = odd.patro;
+                            if (pat == patro) // to oddeleni je v patre, kde prave jsem
+                            {
+                                if (Nakupy.Count > 1)
+                                    model.Naplanuj(model.Cas + trpelivost, this, TypUdalosti.Trpelivost);
+                                odd.ZaradDoFronty(this);
+                            }
+                            else
+                                model.vytah.PridejDoFronty(patro, pat, this);
+                        }
+                        break;
+                    case TypUdalosti.Obslouzen:
+                        log("Nakoupeno: " + Nakupy[0]);
+                        Nakupy.RemoveAt(0);
+                        // ...a budu hledat dalsi nakup -->> Start
+                        model.Naplanuj(model.Cas, this, TypUdalosti.Start);
+                        break;
+                    case TypUdalosti.Trpelivost:
+                        log("!!! Trpělivost: " + Nakupy[0]);
+                        // vyradit z fronty:
+                        {
+                            Oddeleni odd = Nakupy[0];
+                            odd.VyradZFronty(this);
+                        }
+
+                        // prehodit tenhle nakup na konec:
+                        Oddeleni nesplneny = Nakupy[0];
+                        Nakupy.RemoveAt(0);
+                        Nakupy.Add(nesplneny);
+
+                        // ...a budu hledat dalsi nakup -->> Start
+                        model.Naplanuj(model.Cas, this, TypUdalosti.Start);
+                        break;
+                }
+            }
+        }
+    
         private Oddeleni OddeleniPodleJmena(string kamChci)
         {
             foreach (Oddeleni odd in model.VsechnaOddeleni)
@@ -432,7 +501,38 @@ namespace simulace
             return null;
         }
     }
+    public class SuperZakaznik_2 : Zakaznik
+    {
+        public SuperZakaznik_2(Model model) : base(model)
+        { }
 
+        public int doba(Oddeleni odd)
+        {
+            switch (odd.patro == patro)
+            {
+                case true:
+                    return (odd.fronta.Count * odd.rychlost);
+                case false:
+                    Model podmodel = 
+            }
+                
+                  
+
+        }  
+        public Oddeleni NejvyhodnejsiOddeleni(List<Oddeleni> Nakupy)
+        {
+            Oddeleni nejvyhodnejsi = Nakupy[0];
+            int nejrychlost = int.MaxValue;
+            for (int i = 1; i < Nakupy.Count + 1; i++)
+            {
+                Oddeleni odd = Nakupy[i];
+                if (odd.patro == patro)
+                {
+
+                }
+            }
+        }
+    }
 
     public class Model
     {
