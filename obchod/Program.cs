@@ -155,16 +155,9 @@ namespace simulace
         Dolu,
         Stoji
     }
-    public class Vytah : Proces
-    {
-        public int kapacita;
-        public int dobaNastupu;
-        public int dobaVystupu;
-        public int dobaPatro2Patro;
-        static int[] ismery = { +1, -1, 0 }; // prevod (int) SmeryJizdy na smer
-        public bool simulace = false;
-
-        private class Pasazer
+    
+    
+     public class Pasazer
         {
             public Zakaznik kdo;
             public int kamJede;
@@ -174,8 +167,21 @@ namespace simulace
                 this.kamJede = kamJede;
             }
         }
+    
+    
+    
+    public class Vytah : Proces
+    {
+        public int kapacita;
+        public int dobaNastupu;
+        public int dobaVystupu;
+        public int dobaPatro2Patro;
+        static int[] ismery = { +1, -1, 0 }; // prevod (int) SmeryJizdy na smer
+        public bool simulace = false;
 
-        private List<Pasazer>[,] cekatele; // [patro,smer]
+       
+
+        public List<Pasazer>[,] cekatele; // [patro,smer]
         private List<Pasazer> naklad; // pasazeri ve vytahu
         private SmeryJizdy smer;
         private int kdyJsemMenilSmer;
@@ -345,7 +351,7 @@ namespace simulace
                         {
                             kdyJsemMenilSmer = model.Cas;
                             // podivat se, jestli nekdo nechce nastoupit opacnym smerem:
-                            model.Naplanuj(model.Cas, this, TypUdalosti.Start);
+                            model.Naplanuj(model.Cas+1, this, TypUdalosti.Start);
                             return;
                         }
 
@@ -426,7 +432,7 @@ namespace simulace
         }
     }
 
-
+    
 
 
 
@@ -601,14 +607,20 @@ namespace simulace
         public SuperZakaznik_2(Model model) : base(model)
         { }
 
-        public int doba(Oddeleni odd)
+        public int fronta(Oddeleni odd)
         {
-            if (odd.patro == patro) return odd.fronta.Count * odd.rychlost;
+            int kamsmer;
+            List<Pasazer> fronta;
+            if (odd.patro == patro) return odd.fronta.Count;
             else
             {
-                int dobaVytahu = this.model.vytah.ZaJakDlouhoDojede(this.patro, odd.patro);
-                int dobaOddeleni = odd.fronta.Count * odd.rychlost;
-                return dobaVytahu + dobaOddeleni;
+                if (odd.patro > patro)
+                    kamsmer = 0;
+                else kamsmer = 1;
+                fronta = this.model.vytah.cekatele[patro, kamsmer];
+                int frontaVytahu = fronta.Count ;
+                int frontaOddeleni = odd.fronta.Count;
+                return frontaVytahu + frontaOddeleni;
 
             }
 
@@ -621,7 +633,7 @@ namespace simulace
             int index = 0;
             for (int i = 1; i < Nakupy.Count; i++)
             {
-                rychlost = doba(Nakupy[i]);
+                rychlost = fronta(Nakupy[i]);
                 if (rychlost < nejrychlost)
                 {
                     nejrychlost = rychlost;
