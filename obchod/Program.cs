@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -36,7 +35,7 @@ namespace simulace
     }
     public class Kalendar
     {
-        public List<Udalost> seznam;
+        private List<Udalost> seznam;
         public Kalendar()
         {
             seznam = new List<Udalost>();
@@ -155,21 +154,16 @@ namespace simulace
         Dolu,
         Stoji
     }
-    
-    
-     public class Pasazer
+    public class Pasazer
         {
-            public Zakaznik kdo;
+            public Proces kdo;
             public int kamJede;
-            public Pasazer(Zakaznik kdo, int kamJede)
+            public Pasazer(Proces kdo, int kamJede)
             {
                 this.kdo = kdo;
                 this.kamJede = kamJede;
             }
         }
-    
-    
-    
     public class Vytah : Proces
     {
         public int kapacita;
@@ -177,7 +171,6 @@ namespace simulace
         public int dobaVystupu;
         public int dobaPatro2Patro;
         static int[] ismery = { +1, -1, 0 }; // prevod (int) SmeryJizdy na smer
-        public bool simulace = false;
 
        
 
@@ -186,13 +179,13 @@ namespace simulace
         private SmeryJizdy smer;
         private int kdyJsemMenilSmer;
 
-        public void PridejDoFronty(int odkud, int kam, Zakaznik kdo)
+        public void PridejDoFronty(int odkud, int kam, Proces kdo)
         {
             Pasazer pas = new Pasazer(kdo, kam);
             if (kam > odkud)
-                this.cekatele[odkud, (int)SmeryJizdy.Nahoru].Add(pas);
+                cekatele[odkud, (int)SmeryJizdy.Nahoru].Add(pas);
             else
-                this.cekatele[odkud, (int)SmeryJizdy.Dolu].Add(pas);
+                cekatele[odkud, (int)SmeryJizdy.Dolu].Add(pas);
 
             // pripadne rozjet stojici vytah:
             if (smer == SmeryJizdy.Stoji)
@@ -221,7 +214,6 @@ namespace simulace
         }
 
         public Vytah(Model model, string popis)
-
         {
             this.model = model;
             string[] popisy = popis.Split(Proces.mezery, StringSplitOptions.RemoveEmptyEntries);
@@ -245,8 +237,6 @@ namespace simulace
             }
             naklad = new List<Pasazer>();
         }
-
-        public Vytah() { }
         public override void Zpracuj(Udalost ud)
         {
             switch (ud.co)
@@ -266,13 +256,10 @@ namespace simulace
                             naklad.Remove(pas);
 
                             pas.kdo.patro = patro;
-                            //if(!this.simulace)
                             model.Naplanuj(model.Cas + dobaVystupu, pas.kdo, TypUdalosti.Start);
                             log("vystupuje " + pas.kdo.ID);
 
-
                             model.Naplanuj(model.Cas + dobaVystupu, this, TypUdalosti.Start);
-                            if (this.simulace) pas.kdo.vystoupil = true;
 
                             return; // to je pro tuhle chvili vsechno
                         }
@@ -351,7 +338,7 @@ namespace simulace
                         {
                             kdyJsemMenilSmer = model.Cas;
                             // podivat se, jestli nekdo nechce nastoupit opacnym smerem:
-                            model.Naplanuj(model.Cas+1, this, TypUdalosti.Start);
+                            model.Naplanuj(model.Cas + 1, this, TypUdalosti.Start);
                             return;
                         }
 
@@ -362,77 +349,9 @@ namespace simulace
                     }
             }
         }
-        public int ZaJakDlouhoDojede(int start, int cil)
-        {
-            int cas = this.model.Cas;
-            Model podmodel = new Model();
-            Vytah podvytah = new Vytah();
-            podvytah.simulace = true;
-            podmodel.Cas = this.model.Cas;
-            podmodel.vytah = podvytah;
-            podmodel.kalendar = new Kalendar();
-            //podmodel.VsechnaOddeleni = this.model.VsechnaOddeleni;
-            foreach(Udalost udalost in this.model.kalendar.seznam)
-            {
-                if (udalost.kdo is Vytah)
-                {
-                    Udalost nova_udalost = new Udalost(udalost.kdy, podvytah, udalost.co);
-                    podmodel.kalendar.seznam.Add(nova_udalost);
-                }
-            }
-            podvytah.model = podmodel;
-            podvytah.kapacita = this.kapacita;
-            podvytah.dobaNastupu = this.dobaNastupu;
-            podvytah.dobaVystupu = this.dobaVystupu;
-            podvytah.dobaPatro2Patro = this.dobaPatro2Patro;
-            podvytah.patro = this.patro;
-            podvytah.smer = this.smer;
-            podvytah.kdyJsemMenilSmer = this.kdyJsemMenilSmer;
-            podvytah.naklad = new List<Pasazer>();
-            foreach (Pasazer pas in this.model.vytah.naklad)
-            {
-                podvytah.naklad.Add(new Pasazer(new Zakaznik(podmodel), pas.kamJede));
-            }
-            podvytah.cekatele = new List<Pasazer>[this.model.vytah.cekatele.GetLength(0), this.model.vytah.cekatele.GetLength(1)];
-            for (int i = 0; i < podvytah.cekatele.GetLength(0); i++)
-            {
-                for (int j = 0; j < 2; j++)
-                {
-                    podvytah.cekatele[i, j] = new List<Pasazer>(); 
-                }
-            }
-            for (int i = 0; i < this.model.vytah.cekatele.GetLength(0); i++)
-            {
-                for (int j = 0; j < this.model.vytah.cekatele.GetLength(1); j++)
-                {
-                    List<Pasazer> list = this.model.vytah.cekatele[i, j];
-                    foreach (Pasazer pas in list)
-                    {
-                        Pasazer novypasazer = new Pasazer(new Zakaznik(podmodel), pas.kamJede);
-                        podvytah.cekatele[i, j].Add(novypasazer);
-                    }
-                }
-
-            }
-            Zakaznik sledovany = new Zakaznik(podmodel);
-            podvytah.PridejDoFronty(start, cil, sledovany);
-            Udalost ud;
-            while ((ud = podmodel.kalendar.Vyber()) != null)
-            {
-                podmodel.Cas = ud.kdy;
-                if (ud.kdo is Vytah)
-                ud.kdo.Zpracuj(ud);
-                if (ud.kdo == sledovany)
-                {
-                    if (sledovany.vystoupil) return podmodel.Cas - cas;
-                }
-                //Console.WriteLine("{0} {1} {2}", ud.kdy, ud.kdo.ID, ud.co);
-            }
-            return 0;
-        }
     }
 
-    
+
 
 
 
@@ -448,20 +367,15 @@ namespace simulace
             this.trpelivost = Generator.rnd.Next(1, 181);
             Nakupy = new List<Oddeleni>();
             int pocet_nakupu = Generator.rnd.Next(1, 21);
-            if (!this.model.vytah.simulace)
+            for (int i = 0; i < pocet_nakupu; i++)
             {
-                for (int i = 0; i < pocet_nakupu; i++)
-                {
-                    int j = Generator.rnd.Next(1, model.VsechnaOddeleni.Count);
-                    Nakupy.Add(model.VsechnaOddeleni[j]);
-                }
+                int j = Generator.rnd.Next(1, model.VsechnaOddeleni.Count);
+                Nakupy.Add(model.VsechnaOddeleni[j]);
             }
             this.patro = 0;
             //Console.WriteLine("Init Zakaznik: {0}", ID);
-            if(!this.model.vytah.simulace)
             model.Naplanuj(prichod, this, TypUdalosti.Start);
         }
-        public bool vystoupil = false;
         public override void Zpracuj(Udalost ud)
         {
             switch (ud.co)
@@ -490,8 +404,7 @@ namespace simulace
                     }
                     break;
                 case TypUdalosti.Obslouzen:
-                    //log("Nakoupeno: " + Nakupy[0]);
-                    if(!this.model.vytah.simulace)
+                    log("Nakoupeno: " + Nakupy[0]);
                     Nakupy.RemoveAt(0);
                     // ...a budu hledat dalsi nakup -->> Start
                     model.Naplanuj(model.Cas, this, TypUdalosti.Start);
@@ -506,11 +419,9 @@ namespace simulace
 
                     // prehodit tenhle nakup na konec:
                     Oddeleni nesplneny = Nakupy[0];
-                    if (!(this.model.vytah.simulace))
-                    {
-                        Nakupy.RemoveAt(0);
-                        Nakupy.Add(nesplneny);
-                    }
+                    Nakupy.RemoveAt(0);
+                    Nakupy.Add(nesplneny);
+
                     // ...a budu hledat dalsi nakup -->> Start
                     model.Naplanuj(model.Cas, this, TypUdalosti.Start);
                     break;
@@ -525,7 +436,7 @@ namespace simulace
             public Oddeleni PrednostniNakup(List<Oddeleni> Nakupy)
             {
                 Oddeleni odd;
-                for(int i = 0; i<Nakupy.Count; i++)
+                for (int i = 0; i < Nakupy.Count; i++)
                 {
                     if (Nakupy[i].patro == patro)
                     {
@@ -565,8 +476,7 @@ namespace simulace
                         }
                         break;
                     case TypUdalosti.Obslouzen:
-                        //log("Nakoupeno: " + Nakupy[0]);
-                        if(!(this.model.vytah.simulace))
+                        log("Nakoupeno: " + Nakupy[0]);
                         Nakupy.RemoveAt(0);
                         // ...a budu hledat dalsi nakup -->> Start
                         model.Naplanuj(model.Cas, this, TypUdalosti.Start);
@@ -581,11 +491,8 @@ namespace simulace
 
                         // prehodit tenhle nakup na konec:
                         Oddeleni nesplneny = Nakupy[0];
-                        if (!(this.model.vytah.simulace))
-                        {
-                            Nakupy.RemoveAt(0);
-                            Nakupy.Add(nesplneny);
-                        }
+                        Nakupy.RemoveAt(0);
+                        Nakupy.Add(nesplneny);
 
                         // ...a budu hledat dalsi nakup -->> Start
                         model.Naplanuj(model.Cas, this, TypUdalosti.Start);
@@ -618,7 +525,7 @@ namespace simulace
                     kamsmer = 0;
                 else kamsmer = 1;
                 fronta = this.model.vytah.cekatele[patro, kamsmer];
-                int frontaVytahu = fronta.Count ;
+                int frontaVytahu = fronta.Count;
                 int frontaOddeleni = odd.fronta.Count;
                 return frontaVytahu + frontaOddeleni;
 
@@ -676,8 +583,8 @@ namespace simulace
                     break;
                 case TypUdalosti.Obslouzen:
                     log("Nakoupeno: " + Nakupy[0]);
-                    if(!(this.model.vytah.simulace))
-                    Nakupy.RemoveAt(0);
+                 
+                        Nakupy.RemoveAt(0);
                     // ...a budu hledat dalsi nakup -->> Start
                     model.Naplanuj(model.Cas, this, TypUdalosti.Start);
                     break;
@@ -691,7 +598,7 @@ namespace simulace
 
                     // prehodit tenhle nakup na konec:
                     Oddeleni nesplneny = Nakupy[0];
-                    if (!(this.model.vytah.simulace))
+                   
                     {
                         Nakupy.RemoveAt(0);
                         Nakupy.Add(nesplneny);
@@ -701,8 +608,12 @@ namespace simulace
                     model.Naplanuj(model.Cas, this, TypUdalosti.Start);
                     break;
                 }
-            }
+        
+
+            
         }
+    }
+
 
     public class Model
     {
@@ -711,7 +622,7 @@ namespace simulace
         public Dictionary<Zakaznik, int> zakaznici = new Dictionary<Zakaznik, int>();
         public List<Oddeleni> VsechnaOddeleni = new List<Oddeleni>();
         public int MaxPatro;
-        public Kalendar kalendar;
+        private Kalendar kalendar;
         public void Naplanuj(int kdy, Proces kdo, TypUdalosti co)
         {
             kalendar.Pridej(kdy, kdo, co);
@@ -786,12 +697,13 @@ namespace simulace
         }
     }
 
+
     class Program
     {
         static void Main(string[] args)
         {
             Model model = new Model();
-            for (int pocet = 1; pocet < 502; pocet += 10)
+            for (int pocet = 10; pocet < 502; pocet += 10)
             {
                 model.Vypocet(pocet);
 
